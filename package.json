@@ -1,0 +1,11 @@
+{
+  "name": "cjk-font-subsetter",
+  "version": "1.0.0",
+  "type": "module",
+  "bin": {
+    "cjk-subset": "./index.js"
+  },
+  "dependencies": {
+    "glob": "^11.0.0"
+  }
+}

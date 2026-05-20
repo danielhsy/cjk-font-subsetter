@@ -1,0 +1,18 @@
+{
+  "fontDisplay": "swap",
+  "fonts": [
+    {
+      "src": "./GenKiMin2TW-R.otf",
+      "family": "GenKiMin2TW",
+      "weight": 400,
+      "output": "./test/dist"
+    }
+  ],
+  "common": {
+    "files": ["./test/layouts/**/*.html"]
+  },
+  "pages": [
+    { "name": "index", "files": ["./test/pages/index.html"] },
+    { "name": "about", "files": ["./test/pages/about.html"] }
+  ]
+}

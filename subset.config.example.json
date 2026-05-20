@@ -1,0 +1,31 @@
+{
+  "fontDisplay": "swap",
+  "fonts": [
+    {
+      "comment": "static font",
+      "src": "./fonts/NotoSerifSC-Regular.ttf",
+      "family": "Noto Serif SC",
+      "weight": 400,
+      "output": "./dist/fonts"
+    },
+    {
+      "comment": "variable font — weight is a range, axisLimits trims the variation space",
+      "src": "./fonts/NotoSerifSC-VF.ttf",
+      "family": "Noto Serif SC",
+      "weight": "100 900",
+      "axisLimits": { "wght": "300:700" },
+      "output": "./dist/fonts"
+    }
+  ],
+  "common": {
+    "files": [
+      "./src/layouts/**/*.html",
+      "./src/components/**/*.html"
+    ]
+  },
+  "pages": [
+    { "name": "index",  "files": ["./src/pages/index.html"] },
+    { "name": "about",  "files": ["./src/pages/about.html"] },
+    { "name": "blog",   "files": ["./src/pages/blog/**/*.html", "./content/blog/**/*.md"] }
+  ]
+}
