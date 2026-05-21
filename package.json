@@ -3,10 +3,19 @@
   "version": "1.0.0",
   "type": "module",
   "bin": {
-    "cjk-subset": "./index.js"
+    "cjk-subset": "./bin/cjk-subset.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "glob": "^11.0.0",
     "node-html-parser": "^7.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "puppeteer": "^25.0.4",
+    "typescript": "^6.0.3"
   }
 }
