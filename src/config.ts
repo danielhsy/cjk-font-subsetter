@@ -6,6 +6,7 @@ export interface FontConfig {
   weight?: number | string
   style?: string
   output?: string
+  fontUrlBase?: string
   axisLimits?: Record<string, string>
 }
 
@@ -20,6 +21,7 @@ export interface PageConfig extends EntryConfig {
 
 export interface Config {
   fontDisplay?: string
+  cssOutput?: string
   fonts: FontConfig[]
   common?: EntryConfig
   pages?: PageConfig[]

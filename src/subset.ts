@@ -46,6 +46,11 @@ export function runSubsets(
   })
 }
 
-export function relativeOutputs(srcs: SubsetOutput[], outputDir: string): SubsetOutput[] {
-  return srcs.map(({ outFile, format }) => ({ outFile: join(outputDir, basename(outFile)), format }))
+export function cssSrcPaths(srcs: SubsetOutput[], outputDir: string, urlBase?: string): SubsetOutput[] {
+  return srcs.map(({ outFile, format }) => ({
+    outFile: urlBase
+      ? `${urlBase.replace(/\/$/, '')}/${basename(outFile)}`
+      : join(outputDir, basename(outFile)),
+    format,
+  }))
 }

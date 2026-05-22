@@ -1,8 +1,8 @@
-import { writeFileSync } from 'fs'
+import { mkdirSync, writeFileSync } from 'fs'
 import { resolve, dirname, join, basename, extname } from 'path'
 import { loadConfig, type EntryConfig } from './config.js'
 import { charsFromFiles, charsFromURL } from './extract.js'
-import { runSubsets, relativeOutputs } from './subset.js'
+import { runSubsets, cssSrcPaths } from './subset.js'
 import { toUnicodeRange, fontFaceBlock } from './css.js'
 import type { Page, Browser } from 'puppeteer'
 
@@ -47,13 +47,18 @@ async function main() {
   }
 
   try {
+    const allCssBlocks: string[] = []
+
     for (const font of config.fonts) {
       const fontSrc = resolve(base, font.src)
       const outDir = resolve(base, font.output ?? 'dist/fonts')
       const stem = basename(font.src, extname(font.src))
-      const cssBlocks: string[] = []
+      const fontCssBlocks: string[] = []
 
       console.log(`\nProcessing ${basename(fontSrc)}`)
+
+      const cssPathsFor = (srcs: ReturnType<typeof runSubsets>) =>
+        cssSrcPaths(srcs, font.output ?? 'dist/fonts', font.fontUrlBase)
 
       let commonChars = new Set<string>()
       if (config.common) {
@@ -63,12 +68,12 @@ async function main() {
 
         const srcs = runSubsets(fontSrc, commonChars, stem, outDir, 'common', font.axisLimits)
         if (srcs.length) {
-          cssBlocks.push(fontFaceBlock({
+          fontCssBlocks.push(fontFaceBlock({
             family: font.family,
             weight: font.weight,
             style: font.style,
             fontDisplay: config.fontDisplay ?? 'swap',
-            srcs: relativeOutputs(srcs, font.output ?? 'dist/fonts'),
+            srcs: cssPathsFor(srcs),
             unicodeRange: toUnicodeRange(commonChars),
           }))
         }
@@ -82,22 +87,31 @@ async function main() {
 
         const srcs = runSubsets(fontSrc, pageChars, stem, outDir, page.name, font.axisLimits)
         if (srcs.length) {
-          cssBlocks.push(fontFaceBlock({
+          fontCssBlocks.push(fontFaceBlock({
             family: font.family,
             weight: font.weight,
             style: font.style,
             fontDisplay: config.fontDisplay ?? 'swap',
-            srcs: relativeOutputs(srcs, font.output ?? 'dist/fonts'),
+            srcs: cssPathsFor(srcs),
             unicodeRange: toUnicodeRange(pageChars),
           }))
         }
       }
 
-      if (cssBlocks.length > 0) {
+      if (config.cssOutput) {
+        allCssBlocks.push(...fontCssBlocks)
+      } else if (fontCssBlocks.length > 0) {
         const cssPath = join(outDir, `${stem}.css`)
-        writeFileSync(cssPath, cssBlocks.join('\n\n') + '\n')
+        writeFileSync(cssPath, fontCssBlocks.join('\n\n') + '\n')
         console.log(`  wrote ${cssPath}`)
       }
+    }
+
+    if (config.cssOutput && allCssBlocks.length > 0) {
+      const cssPath = resolve(base, config.cssOutput)
+      mkdirSync(dirname(cssPath), { recursive: true })
+      writeFileSync(cssPath, allCssBlocks.join('\n\n') + '\n')
+      console.log(`\nwrote ${cssPath}`)
     }
   } finally {
     await browser?.close()
