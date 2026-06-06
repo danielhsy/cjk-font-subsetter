@@ -28,7 +28,7 @@ export async function charsFromFiles(patterns: string[], base: string): Promise<
 // (and, if fontWeight is given, whose computed font-weight matches), use canvas
 // to check whether removing fontFamily from the stack changes the rendered output
 // at the given weight. This correctly excludes characters rendered by earlier
-// fonts in the stack (e.g. Latin text covered by Noto before GenKiMin2TW).
+// fonts in the stack (e.g. Latin glyphs covered by a system font before the CJK font).
 export async function charsFromURL(
   page: Page,
   url: string,
