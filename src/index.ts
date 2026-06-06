@@ -29,6 +29,11 @@ function subtract<T>(a: Set<T>, b: Set<T>): Set<T> {
   return result
 }
 
+interface FamilyData {
+  commonChars: Set<string>
+  pageCharsMap: Map<string, Set<string>>  // page name → unique chars (common already subtracted)
+}
+
 interface SectionEntry {
   family: string
   weight?: number | string
@@ -57,8 +62,34 @@ async function main() {
   }
 
   try {
+    // Phase 1: extract chars once per unique family name.
+    const familyData = new Map<string, FamilyData>()
+    const families = [...new Set(config.fonts.map(f => f.family))]
+
+    for (const family of families) {
+      console.log(`\nExtracting for family ${family}`)
+
+      let commonChars = new Set<string>()
+      if (config.common) {
+        commonChars = await extractEntry(config.common, family, browserPage)
+        const src = config.common.url ?? [config.common.files ?? []].flat().join(', ')
+        console.log(`  common: ${commonChars.size} chars from ${src}`)
+      }
+
+      const pageCharsMap = new Map<string, Set<string>>()
+      for (const page of (config.pages ?? [])) {
+        const allPageChars = await extractEntry(page, family, browserPage)
+        const pageChars = subtract(allPageChars, commonChars)
+        const src = page.url ?? [page.files ?? []].flat().join(', ')
+        console.log(`  ${page.name}: ${pageChars.size} unique chars (${allPageChars.size} total) from ${src}`)
+        pageCharsMap.set(page.name, pageChars)
+      }
+
+      familyData.set(family, { commonChars, pageCharsMap })
+    }
+
+    // Phase 2: subset each font file using the cached extraction results.
     const allCssBlocks: string[] = []
-    // Keyed by section name ('common', page names); accumulates blocks across all fonts.
     const sectionCssMap = new Map<string, SectionEntry[]>()
 
     for (const font of config.fonts) {
@@ -66,6 +97,7 @@ async function main() {
       const outDir = resolve(base, font.output ?? 'dist/fonts')
       const stem = basename(font.src, extname(font.src))
       const fontCssBlocks: string[] = []
+      const { commonChars, pageCharsMap } = familyData.get(font.family)!
 
       console.log(`\nProcessing ${basename(fontSrc)}`)
 
@@ -94,12 +126,7 @@ async function main() {
         sectionCssMap.set(name, entries)
       }
 
-      let commonChars = new Set<string>()
       if (config.common) {
-        commonChars = await extractEntry(config.common, font.family, browserPage)
-        const src = config.common.url ?? [config.common.files ?? []].flat().join(', ')
-        console.log(`  common: ${commonChars.size} chars from ${src}`)
-
         const srcs = runSubsets(fontSrc, commonChars, stem, outDir, 'common', font.axisLimits)
         if (srcs.length) {
           fontCssBlocks.push(makeCssBlock(commonChars, srcs, outDir))
@@ -108,11 +135,7 @@ async function main() {
       }
 
       for (const page of (config.pages ?? [])) {
-        const allPageChars = await extractEntry(page, font.family, browserPage)
-        const pageChars = subtract(allPageChars, commonChars)
-        const src = page.url ?? [page.files ?? []].flat().join(', ')
-        console.log(`  ${page.name}: ${pageChars.size} unique chars (${allPageChars.size} total) from ${src}`)
-
+        const pageChars = pageCharsMap.get(page.name)!
         const srcs = runSubsets(fontSrc, pageChars, stem, outDir, page.name, font.axisLimits)
         if (srcs.length) {
           fontCssBlocks.push(makeCssBlock(pageChars, srcs, outDir))
