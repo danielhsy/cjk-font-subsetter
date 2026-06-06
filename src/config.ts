@@ -8,11 +8,13 @@ export interface FontConfig {
   output?: string
   fontUrlBase?: string
   axisLimits?: Record<string, string>
+  commonChars?: string  // characters forced into the common subset for this font family
 }
 
 export interface EntryConfig {
   files?: string | string[]
   url?: string
+  chars?: string  // literal characters always included regardless of extraction
 }
 
 export interface PageConfig extends EntryConfig {

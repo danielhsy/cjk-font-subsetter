@@ -24,6 +24,9 @@ async function extractEntry(
   browserPage: Page | null,
 ): Promise<Set<string>> {
   const chars = new Set<string>()
+  if (entry.chars) {
+    for (const ch of entry.chars) if (ch.codePointAt(0)! > 0x20) chars.add(ch)
+  }
   if (entry.files) {
     const patterns = [entry.files].flat()
     for (const ch of await charsFromFiles(patterns, base)) chars.add(ch)
@@ -98,6 +101,20 @@ async function main() {
         const src = config.common.url ?? [config.common.files ?? []].flat().join(', ')
         console.log(`  common: ${commonChars.size} chars from ${src}`)
       }
+      // Per-font commonChars: characters declared on FontConfig that bypass extraction
+      let forcedCommon = ''
+      for (const font of config.fonts) {
+        if (extractionKey(font.family, font.weight) === key && font.commonChars) {
+          for (const ch of font.commonChars) {
+            if (ch.codePointAt(0)! > 0x20 && !commonChars.has(ch)) {
+              commonChars.add(ch)
+              forcedCommon += ch
+            }
+          }
+        }
+      }
+      if (forcedCommon) console.log(`  +commonChars override: "${forcedCommon}"`)
+
 
       const pageCharsMap = new Map<string, Set<string>>()
       for (const page of (config.pages ?? [])) {
