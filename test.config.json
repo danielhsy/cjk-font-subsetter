@@ -9,10 +9,22 @@
     }
   ],
   "common": {
-    "files": ["./test/layouts/**/*.html"]
+    "files": [
+      "./test/layouts/**/*.html"
+    ]
   },
   "pages": [
-    { "name": "index", "files": ["./test/pages/index.html"] },
-    { "name": "about", "files": ["./test/pages/about.html"] }
+    {
+      "name": "index",
+      "files": [
+        "./test/pages/index.html"
+      ]
+    },
+    {
+      "name": "about",
+      "files": [
+        "./test/pages/about.html"
+      ]
+    }
   ]
 }

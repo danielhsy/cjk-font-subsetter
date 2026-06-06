@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'fs'
 import { resolve, dirname, join, basename, extname } from 'path'
 import { loadConfig, type EntryConfig } from './config.js'
 import { charsFromFiles, charsFromURL } from './extract.js'
-import { runSubsets, cssSrcPaths } from './subset.js'
+import { runSubsets, cssSrcPaths, type SubsetOutput } from './subset.js'
 import { toUnicodeRange, fontFaceBlock } from './css.js'
 import type { Page, Browser } from 'puppeteer'
 
@@ -29,6 +29,16 @@ function subtract<T>(a: Set<T>, b: Set<T>): Set<T> {
   return result
 }
 
+interface SectionEntry {
+  family: string
+  weight?: number | string
+  style?: string
+  fontDisplay: string
+  unicodeRange: string | null
+  rawSrcs: SubsetOutput[]
+  urlBase?: string
+}
+
 async function main() {
   const allEntries = [config.common, ...(config.pages ?? [])].filter(Boolean)
   const needsBrowser = allEntries.some(e => e?.url)
@@ -48,6 +58,8 @@ async function main() {
 
   try {
     const allCssBlocks: string[] = []
+    // Keyed by section name ('common', page names); accumulates blocks across all fonts.
+    const sectionCssMap = new Map<string, SectionEntry[]>()
 
     for (const font of config.fonts) {
       const fontSrc = resolve(base, font.src)
@@ -57,8 +69,30 @@ async function main() {
 
       console.log(`\nProcessing ${basename(fontSrc)}`)
 
-      const cssPathsFor = (srcs: ReturnType<typeof runSubsets>) =>
-        cssSrcPaths(srcs, font.output ?? 'dist/fonts', font.fontUrlBase)
+      const makeCssBlock = (chars: Set<string>, srcs: SubsetOutput[], cssDir: string): string =>
+        fontFaceBlock({
+          family: font.family,
+          weight: font.weight,
+          style: font.style,
+          fontDisplay: config.fontDisplay ?? 'swap',
+          srcs: cssSrcPaths(srcs, cssDir, font.fontUrlBase),
+          unicodeRange: toUnicodeRange(chars),
+        })
+
+      const recordSection = (name: string, chars: Set<string>, srcs: SubsetOutput[]) => {
+        if (!config.sectionCssOutput) return
+        const entries = sectionCssMap.get(name) ?? []
+        entries.push({
+          family: font.family,
+          weight: font.weight,
+          style: font.style,
+          fontDisplay: config.fontDisplay ?? 'swap',
+          unicodeRange: toUnicodeRange(chars),
+          rawSrcs: srcs,
+          urlBase: font.fontUrlBase,
+        })
+        sectionCssMap.set(name, entries)
+      }
 
       let commonChars = new Set<string>()
       if (config.common) {
@@ -68,14 +102,8 @@ async function main() {
 
         const srcs = runSubsets(fontSrc, commonChars, stem, outDir, 'common', font.axisLimits)
         if (srcs.length) {
-          fontCssBlocks.push(fontFaceBlock({
-            family: font.family,
-            weight: font.weight,
-            style: font.style,
-            fontDisplay: config.fontDisplay ?? 'swap',
-            srcs: cssPathsFor(srcs),
-            unicodeRange: toUnicodeRange(commonChars),
-          }))
+          fontCssBlocks.push(makeCssBlock(commonChars, srcs, outDir))
+          recordSection('common', commonChars, srcs)
         }
       }
 
@@ -87,14 +115,8 @@ async function main() {
 
         const srcs = runSubsets(fontSrc, pageChars, stem, outDir, page.name, font.axisLimits)
         if (srcs.length) {
-          fontCssBlocks.push(fontFaceBlock({
-            family: font.family,
-            weight: font.weight,
-            style: font.style,
-            fontDisplay: config.fontDisplay ?? 'swap',
-            srcs: cssPathsFor(srcs),
-            unicodeRange: toUnicodeRange(pageChars),
-          }))
+          fontCssBlocks.push(makeCssBlock(pageChars, srcs, outDir))
+          recordSection(page.name, pageChars, srcs)
         }
       }
 
@@ -112,6 +134,24 @@ async function main() {
       mkdirSync(dirname(cssPath), { recursive: true })
       writeFileSync(cssPath, allCssBlocks.join('\n\n') + '\n')
       console.log(`\nwrote ${cssPath}`)
+    }
+
+    if (config.sectionCssOutput && sectionCssMap.size > 0) {
+      const sectionDir = resolve(base, config.sectionCssOutput)
+      mkdirSync(sectionDir, { recursive: true })
+      for (const [name, entries] of sectionCssMap) {
+        const cssPath = join(sectionDir, `${name}.css`)
+        const blocks = entries.map(entry => fontFaceBlock({
+          family: entry.family,
+          weight: entry.weight,
+          style: entry.style,
+          fontDisplay: entry.fontDisplay,
+          unicodeRange: entry.unicodeRange,
+          srcs: cssSrcPaths(entry.rawSrcs, sectionDir, entry.urlBase),
+        }))
+        writeFileSync(cssPath, blocks.join('\n\n') + '\n')
+        console.log(`  wrote ${cssPath}`)
+      }
     }
   } finally {
     await browser?.close()

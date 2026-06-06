@@ -22,6 +22,7 @@ export interface PageConfig extends EntryConfig {
 export interface Config {
   fontDisplay?: string
   cssOutput?: string
+  sectionCssOutput?: string
   fonts: FontConfig[]
   common?: EntryConfig
   pages?: PageConfig[]
