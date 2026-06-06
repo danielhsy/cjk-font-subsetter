@@ -10,7 +10,19 @@ const configPath = resolve(process.argv[2] ?? 'subset.config.json')
 const config = loadConfig(configPath)
 const base = dirname(configPath)
 
-async function extractEntry(entry: EntryConfig, fontFamily: string, browserPage: Page | null): Promise<Set<string>> {
+// Deduplication key: numeric weights get their own extraction pass so that
+// bold and regular subsets contain only characters actually rendered at that weight.
+// Variable-weight fonts (string weights) share one pass.
+function extractionKey(family: string, weight?: number | string): string {
+  return typeof weight === 'number' ? `${family}:${weight}` : family
+}
+
+async function extractEntry(
+  entry: EntryConfig,
+  fontFamily: string,
+  fontWeight: number | undefined,
+  browserPage: Page | null,
+): Promise<Set<string>> {
   const chars = new Set<string>()
   if (entry.files) {
     const patterns = [entry.files].flat()
@@ -18,7 +30,7 @@ async function extractEntry(entry: EntryConfig, fontFamily: string, browserPage:
   }
   if (entry.url) {
     if (!browserPage) throw new Error(`url set but browser unavailable — this should not happen`)
-    for (const ch of await charsFromURL(browserPage, entry.url, fontFamily)) chars.add(ch)
+    for (const ch of await charsFromURL(browserPage, entry.url, fontFamily, fontWeight)) chars.add(ch)
   }
   return chars
 }
@@ -62,30 +74,41 @@ async function main() {
   }
 
   try {
-    // Phase 1: extract chars once per unique family name.
+    // Phase 1: extract chars once per unique (family, weight) pair.
+    // Numeric weights are extracted separately so bold and regular
+    // end up with disjoint unicode-ranges.
     const familyData = new Map<string, FamilyData>()
-    const families = [...new Set(config.fonts.map(f => f.family))]
 
-    for (const family of families) {
-      console.log(`\nExtracting for family ${family}`)
+    const extractionGroups = new Map<string, { family: string; weight: number | undefined }>()
+    for (const font of config.fonts) {
+      const numericWeight = typeof font.weight === 'number' ? font.weight : undefined
+      const key = extractionKey(font.family, font.weight)
+      if (!extractionGroups.has(key)) {
+        extractionGroups.set(key, { family: font.family, weight: numericWeight })
+      }
+    }
+
+    for (const [key, { family, weight }] of extractionGroups) {
+      const label = weight !== undefined ? `${family} weight ${weight}` : `family ${family}`
+      console.log(`\nExtracting for ${label}`)
 
       let commonChars = new Set<string>()
       if (config.common) {
-        commonChars = await extractEntry(config.common, family, browserPage)
+        commonChars = await extractEntry(config.common, family, weight, browserPage)
         const src = config.common.url ?? [config.common.files ?? []].flat().join(', ')
         console.log(`  common: ${commonChars.size} chars from ${src}`)
       }
 
       const pageCharsMap = new Map<string, Set<string>>()
       for (const page of (config.pages ?? [])) {
-        const allPageChars = await extractEntry(page, family, browserPage)
+        const allPageChars = await extractEntry(page, family, weight, browserPage)
         const pageChars = subtract(allPageChars, commonChars)
         const src = page.url ?? [page.files ?? []].flat().join(', ')
         console.log(`  ${page.name}: ${pageChars.size} unique chars (${allPageChars.size} total) from ${src}`)
         pageCharsMap.set(page.name, pageChars)
       }
 
-      familyData.set(family, { commonChars, pageCharsMap })
+      familyData.set(key, { commonChars, pageCharsMap })
     }
 
     // Phase 2: subset each font file using the cached extraction results.
@@ -97,7 +120,8 @@ async function main() {
       const outDir = resolve(base, font.output ?? 'dist/fonts')
       const stem = basename(font.src, extname(font.src))
       const fontCssBlocks: string[] = []
-      const { commonChars, pageCharsMap } = familyData.get(font.family)!
+      const key = extractionKey(font.family, font.weight)
+      const { commonChars, pageCharsMap } = familyData.get(key)!
 
       console.log(`\nProcessing ${basename(fontSrc)}`)
 
@@ -129,8 +153,9 @@ async function main() {
       if (config.common) {
         const srcs = runSubsets(fontSrc, commonChars, stem, outDir, 'common', font.axisLimits)
         if (srcs.length) {
+          // Common always goes into cssOutput (the global linked stylesheet).
+          // It never goes into sectionCssOutput to avoid loading it twice.
           fontCssBlocks.push(makeCssBlock(commonChars, srcs, outDir))
-          recordSection('common', commonChars, srcs)
         }
       }
 
@@ -138,7 +163,11 @@ async function main() {
         const pageChars = pageCharsMap.get(page.name)!
         const srcs = runSubsets(fontSrc, pageChars, stem, outDir, page.name, font.axisLimits)
         if (srcs.length) {
-          fontCssBlocks.push(makeCssBlock(pageChars, srcs, outDir))
+          // When sectionCssOutput is configured, page CSS goes ONLY into section
+          // files — cssOutput then contains only the common @font-face.
+          if (!config.sectionCssOutput) {
+            fontCssBlocks.push(makeCssBlock(pageChars, srcs, outDir))
+          }
           recordSection(page.name, pageChars, srcs)
         }
       }
