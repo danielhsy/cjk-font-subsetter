@@ -125,13 +125,17 @@ async function main() {
 
       console.log(`\nProcessing ${basename(fontSrc)}`)
 
-      const makeCssBlock = (chars: Set<string>, srcs: SubsetOutput[], cssDir: string): string =>
+      // When cssOutput is set the blocks land in a different directory than the
+      // font files, so relative src paths must be computed from the CSS dir.
+      const cssBlockDir = config.cssOutput ? dirname(resolve(base, config.cssOutput)) : outDir
+
+      const makeCssBlock = (chars: Set<string>, srcs: SubsetOutput[]): string =>
         fontFaceBlock({
           family: font.family,
           weight: font.weight,
           style: font.style,
           fontDisplay: config.fontDisplay ?? 'swap',
-          srcs: cssSrcPaths(srcs, cssDir, font.fontUrlBase),
+          srcs: cssSrcPaths(srcs, cssBlockDir, font.fontUrlBase),
           unicodeRange: toUnicodeRange(chars),
         })
 
@@ -155,7 +159,7 @@ async function main() {
         if (srcs.length) {
           // Common always goes into cssOutput (the global linked stylesheet).
           // It never goes into sectionCssOutput to avoid loading it twice.
-          fontCssBlocks.push(makeCssBlock(commonChars, srcs, outDir))
+          fontCssBlocks.push(makeCssBlock(commonChars, srcs))
         }
       }
 
@@ -166,7 +170,7 @@ async function main() {
           // When sectionCssOutput is configured, page CSS goes ONLY into section
           // files — cssOutput then contains only the common @font-face.
           if (!config.sectionCssOutput) {
-            fontCssBlocks.push(makeCssBlock(pageChars, srcs, outDir))
+            fontCssBlocks.push(makeCssBlock(pageChars, srcs))
           }
           recordSection(page.name, pageChars, srcs)
         }
