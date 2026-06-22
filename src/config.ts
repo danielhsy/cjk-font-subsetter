@@ -25,6 +25,8 @@ export interface Config {
   fontDisplay?: string
   cssOutput?: string
   sectionCssOutput?: string
+  /** Which font formats to emit, e.g. ['woff2']. Defaults to all (woff2 + woff). */
+  formats?: ('woff2' | 'woff')[]
   fonts: FontConfig[]
   common?: EntryConfig
   pages?: PageConfig[]

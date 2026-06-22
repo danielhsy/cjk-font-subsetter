@@ -34,12 +34,14 @@ export function runSubsets(
   outDir: string,
   name: string,
   axisLimits?: Record<string, string>,
+  formats?: readonly string[],
 ): SubsetOutput[] {
   if (chars.size === 0) {
     console.warn(`  skipping ${name} — no characters`)
     return []
   }
-  return FORMATS.map(({ flavor, ext }) => {
+  const selected = formats?.length ? FORMATS.filter(f => formats.includes(f.ext)) : FORMATS
+  return selected.map(({ flavor, ext }) => {
     const outFile = join(outDir, `${stem}.${name}.${ext}`)
     runSubset(fontSrc, chars, outFile, flavor, axisLimits)
     return { outFile, format: ext }

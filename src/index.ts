@@ -172,7 +172,7 @@ async function main() {
       }
 
       if (config.common) {
-        const srcs = runSubsets(fontSrc, commonChars, stem, outDir, 'common', font.axisLimits)
+        const srcs = runSubsets(fontSrc, commonChars, stem, outDir, 'common', font.axisLimits, config.formats)
         if (srcs.length) {
           // Common always goes into cssOutput (the global linked stylesheet).
           // It never goes into sectionCssOutput to avoid loading it twice.
@@ -182,7 +182,7 @@ async function main() {
 
       for (const page of (config.pages ?? [])) {
         const pageChars = pageCharsMap.get(page.name)!
-        const srcs = runSubsets(fontSrc, pageChars, stem, outDir, page.name, font.axisLimits)
+        const srcs = runSubsets(fontSrc, pageChars, stem, outDir, page.name, font.axisLimits, config.formats)
         if (srcs.length) {
           // When sectionCssOutput is configured, page CSS goes ONLY into section
           // files — cssOutput then contains only the common @font-face.
